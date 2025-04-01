@@ -123,7 +123,7 @@ _AdapterT = TypeVar(
 )
 
 
-# Adapted from jaraco.text
+# Adapted from jaraco.text 3.12.1
 def yield_lines(iterable: _NestedStr) -> Generator[str]:
     r"""
     Yield valid lines of a string or iterable.
@@ -3477,7 +3477,7 @@ def parse_requirements(strs: _NestedStr) -> Generator[Requirement]:
     """
     no_trailing_comments = (line.partition(' #')[0] for line in yield_lines(strs))
 
-    # Inlined from jaraco.text.join_continuations:
+    # From jaraco.text 3.12.1: Inlined join_continuations()
     # Join adjacent lines connected by line continuations.
     for req_line in no_trailing_comments:
         while req_line.endswith('\\'):
