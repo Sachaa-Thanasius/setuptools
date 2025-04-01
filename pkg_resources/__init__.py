@@ -50,7 +50,7 @@ import types
 import warnings
 import zipfile
 import zipimport
-from collections.abc import Iterable, Iterator, Mapping, MutableSequence
+from collections.abc import Generator, Iterable, Iterator, Mapping, MutableSequence
 from pkgutil import get_importer
 from typing import (
     TYPE_CHECKING,
@@ -87,7 +87,6 @@ import packaging.requirements
 import packaging.specifiers
 import packaging.utils
 import packaging.version
-from jaraco.text import drop_comment, join_continuation, yield_lines
 from platformdirs import user_cache_dir as _user_cache_dir
 
 if TYPE_CHECKING:
@@ -122,6 +121,64 @@ _NSHandlerType: TypeAlias = Callable[[_T, str, str, types.ModuleType], Union[str
 _AdapterT = TypeVar(
     "_AdapterT", _DistFinderType[Any], _ProviderFactoryType, _NSHandlerType[Any]
 )
+
+
+# Adapted from jaraco.text
+def yield_lines(iterable: _NestedStr) -> Generator[str]:
+    r"""
+    Yield valid lines of a string or iterable.
+
+    >>> list(yield_lines(''))
+    []
+    >>> list(yield_lines(['foo', 'bar']))
+    ['foo', 'bar']
+    >>> list(yield_lines('foo\nbar'))
+    ['foo', 'bar']
+    >>> list(yield_lines('\nfoo\n#bar\nbaz #comment'))
+    ['foo', 'baz #comment']
+    >>> list(yield_lines(['foo\nbar', 'baz', 'bing\n\n\n']))
+    ['foo', 'bar', 'baz', 'bing']
+    """
+    queue: collections.deque[_NestedStr] = collections.deque([iterable])
+    while queue:
+        text = queue.popleft()
+        if not isinstance(text, str):
+            queue.extend(text)
+            continue
+
+        for line in map(str.strip, text.splitlines()):
+            if line and not line.startswith('#'):
+                yield line
+
+
+# Adapted from jaraco.text
+def join_continuation(lines: Iterable[str]) -> Generator[str]:
+    r"""
+    Join lines continued by a trailing backslash.
+
+    >>> list(join_continuation(['foo \\', 'bar', 'baz']))
+    ['foobar', 'baz']
+    >>> list(join_continuation(['foo \\', 'bar', 'baz']))
+    ['foobar', 'baz']
+    >>> list(join_continuation(['foo \\', 'bar \\', 'baz']))
+    ['foobarbaz']
+    >>> list(join_continuation(['goo\\', 'dly']))
+    ['goodly']
+
+    A terrible idea, but...
+    If no line is available to continue, suppress the lines.
+
+    >>> list(join_continuation(['foo', 'bar\\', 'baz\\']))
+    ['foo']
+    """
+    lines = iter(lines)
+    for item in lines:
+        while item.endswith('\\'):
+            try:
+                item = item[:-1].strip() + next(lines)
+            except StopIteration:
+                return
+        yield item
 
 
 class _ZipLoaderModule(Protocol):
@@ -3448,7 +3505,8 @@ def parse_requirements(strs: _NestedStr) -> map[Requirement]:
 
     `strs` must be a string, or a (possibly-nested) iterable thereof.
     """
-    return map(Requirement, join_continuation(map(drop_comment, yield_lines(strs))))
+    no_trailing_comments = (line.partition(' #')[0] for line in yield_lines(strs))
+    return map(Requirement, join_continuation(no_trailing_comments))
 
 
 class RequirementParseError(packaging.requirements.InvalidRequirement):
