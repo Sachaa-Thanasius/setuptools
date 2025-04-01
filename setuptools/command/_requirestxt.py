@@ -15,11 +15,11 @@ from collections.abc import Mapping
 from itertools import filterfalse
 from typing import TypeVar
 
-from jaraco.text import yield_lines
 from packaging.requirements import Requirement
 
 from .. import _reqs
 from .._reqs import _StrOrIter
+from .._text_utils import yield_lines
 
 # dict can work as an ordered set
 _T = TypeVar("_T")

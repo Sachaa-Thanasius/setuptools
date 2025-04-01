@@ -36,8 +36,6 @@ from glob import glob
 from sysconfig import get_path
 from typing import TYPE_CHECKING, NoReturn, TypedDict
 
-from jaraco.text import yield_lines
-
 import pkg_resources
 from pkg_resources import (
     DEVELOP_DIST,
@@ -64,6 +62,7 @@ from setuptools.wheel import Wheel
 
 from .._path import ensure_directory
 from .._shutil import attempt_chmod_verbose as chmod, rmtree as _rmtree
+from .._text_utils import yield_lines
 from ..compat import py39, py312
 
 from distutils import dir_util, log

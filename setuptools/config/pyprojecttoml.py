@@ -19,6 +19,7 @@ from functools import partial
 from types import TracebackType
 from typing import TYPE_CHECKING, Any, Callable
 
+from .._itertools import always_iterable
 from .._path import StrPath
 from ..errors import FileError, InvalidConfigError
 from ..warnings import SetuptoolsWarning
@@ -283,8 +284,6 @@ class _ConfigExpander:
     def _expand_directive(
         self, specifier: str, directive, package_dir: Mapping[str, str]
     ):
-        from more_itertools import always_iterable
-
         with _ignore_errors(self.ignore_option_errors):
             root_dir = self.root_dir
             if "file" in directive:

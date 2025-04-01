@@ -15,7 +15,7 @@ import os.path
 import platform
 from typing import TYPE_CHECKING, TypedDict
 
-from more_itertools import unique_everseen
+from ._itertools import unique_everseen
 
 import distutils.errors
 

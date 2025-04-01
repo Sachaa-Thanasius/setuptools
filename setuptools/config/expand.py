@@ -35,6 +35,7 @@ from types import ModuleType, TracebackType
 from typing import TYPE_CHECKING, Any, Callable, TypeVar
 
 from .. import _static
+from .._itertools import always_iterable, unique_everseen
 from .._path import StrPath, same_path as _same_path
 from ..discovery import find_package_path
 from ..warnings import SetuptoolsWarning
@@ -119,7 +120,6 @@ def read_files(
 
     (By default ``root_dir`` is the current directory).
     """
-    from more_itertools import always_iterable
 
     root_dir = os.path.abspath(root_dir or os.getcwd())
     _filepaths = (os.path.join(root_dir, path) for path in always_iterable(filepaths))
@@ -286,7 +286,6 @@ def find_packages(
 
     :rtype: list
     """
-    from more_itertools import always_iterable, unique_everseen
 
     from setuptools.discovery import construct_package_dir
 

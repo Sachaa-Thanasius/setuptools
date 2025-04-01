@@ -10,8 +10,7 @@ from functools import partial
 from glob import glob
 from pathlib import Path
 
-from more_itertools import unique_everseen
-
+from .._itertools import unique_everseen
 from .._path import StrPath, StrPathT
 from ..dist import Distribution
 from ..warnings import SetuptoolsDeprecationWarning

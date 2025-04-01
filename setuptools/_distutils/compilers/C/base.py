@@ -20,8 +20,6 @@ from typing import (
     overload,
 )
 
-from more_itertools import always_iterable
-
 from ..._log import log
 from ..._modified import newer_group
 from ...dir_util import mkpath
@@ -865,7 +863,7 @@ class Compiler:
         """
         raise NotImplementedError
 
-    def runtime_library_dir_option(self, dir: str) -> str:
+    def runtime_library_dir_option(self, dir: str) -> str | list[str]:
         """Return the compiler option to add 'dir' to the list of
         directories searched for runtime libraries.
         """
@@ -1371,7 +1369,11 @@ def gen_lib_options(
     lib_opts = [compiler.library_dir_option(dir) for dir in library_dirs]
 
     for dir in runtime_library_dirs:
-        lib_opts.extend(always_iterable(compiler.runtime_library_dir_option(dir)))
+        lib_opt = compiler.runtime_library_dir_option(dir)
+        if isinstance(lib_opt, str):
+            lib_opts.append(lib_opt)
+        else:
+            lib_opts.extend(lib_opt)
 
     # XXX it's important that we *not* remove redundant library mentions!
     # sometimes you really do have to say "-lfoo -lbar -lfoo" in order to

@@ -4,8 +4,9 @@ from collections.abc import Iterable, Iterator
 from functools import lru_cache
 from typing import TYPE_CHECKING, Callable, TypeVar, Union, overload
 
-import jaraco.text as text
 from packaging.requirements import Requirement
+
+from . import _text_utils as text
 
 if TYPE_CHECKING:
     from typing_extensions import TypeAlias

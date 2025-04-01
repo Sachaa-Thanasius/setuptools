@@ -34,6 +34,7 @@ import importlib.abc
 import importlib.machinery
 import inspect
 import io
+import itertools
 import ntpath
 import operator
 import os
@@ -50,7 +51,7 @@ import types
 import warnings
 import zipfile
 import zipimport
-from collections.abc import Generator, Iterable, Iterator, Mapping, MutableSequence
+from collections.abc import Iterable, Iterator, Mapping, MutableSequence
 from pkgutil import get_importer
 from typing import (
     TYPE_CHECKING,
@@ -123,8 +124,14 @@ _AdapterT = TypeVar(
 )
 
 
-# Adapted from jaraco.text 3.12.1
-def yield_lines(iterable: _NestedStr) -> Generator[str]:
+# From jaraco.text 3.12.1
+def _nonblank(str: str):
+    return str and not str.startswith('#')
+
+
+# From jaraco.text 3.12.1
+@functools.singledispatch
+def yield_lines(iterable: _NestedStr) -> itertools.chain[str]:
     r"""
     Yield valid lines of a string or iterable.
 
@@ -139,16 +146,58 @@ def yield_lines(iterable: _NestedStr) -> Generator[str]:
     >>> list(yield_lines(['foo\nbar', 'baz', 'bing\n\n\n']))
     ['foo', 'bar', 'baz', 'bing']
     """
-    queue: collections.deque[_NestedStr] = collections.deque([iterable])
-    while queue:
-        text = queue.popleft()
-        if not isinstance(text, str):
-            queue.extend(text)
-            continue
+    return itertools.chain.from_iterable(map(yield_lines, iterable))
 
-        for line in map(str.strip, text.splitlines()):
-            if line and not line.startswith('#'):
-                yield line
+
+@yield_lines.register(str)
+def _(text: str):
+    return filter(_nonblank, map(str.strip, text.splitlines()))
+
+
+# From jaraco.text 3.12.1
+def drop_comment(line: str):
+    """
+    Drop comments.
+
+    >>> drop_comment('foo # bar')
+    'foo'
+
+    A hash without a space may be in a URL.
+
+    >>> drop_comment('http://example.com/foo#bar')
+    'http://example.com/foo#bar'
+    """
+    return line.partition(' #')[0]
+
+
+# Adapted from jaraco.text 3.12.1
+def join_continuation(lines: Iterable[str]):
+    r"""
+    Join lines continued by a trailing backslash.
+
+    >>> list(join_continuation(['foo \\', 'bar', 'baz']))
+    ['foobar', 'baz']
+    >>> list(join_continuation(['foo \\', 'bar', 'baz']))
+    ['foobar', 'baz']
+    >>> list(join_continuation(['foo \\', 'bar \\', 'baz']))
+    ['foobarbaz']
+    >>> list(join_continuation(['goo\\', 'dly']))
+    ['goodly']
+
+    A terrible idea, but...
+    If no line is available to continue, suppress the lines.
+
+    >>> list(join_continuation(['foo', 'bar\\', 'baz\\']))
+    ['foo']
+    """
+    lines = iter(lines)
+    for item in lines:
+        while item.endswith('\\'):
+            try:
+                item = item[:-1].strip() + next(lines)
+            except StopIteration:
+                return
+        yield item
 
 
 class _ZipLoaderModule(Protocol):
@@ -3469,23 +3518,13 @@ def issue_warning(*args, **kw):
     warnings.warn(stacklevel=level + 1, *args, **kw)
 
 
-def parse_requirements(strs: _NestedStr) -> Generator[Requirement]:
+def parse_requirements(strs: _NestedStr) -> map[Requirement]:
     """
     Yield ``Requirement`` objects for each specification in `strs`.
 
     `strs` must be a string, or a (possibly-nested) iterable thereof.
     """
-    no_trailing_comments = (line.partition(' #')[0] for line in yield_lines(strs))
-
-    # From jaraco.text 3.12.1: Inlined join_continuations()
-    # Join adjacent lines connected by line continuations.
-    for req_line in no_trailing_comments:
-        while req_line.endswith('\\'):
-            try:
-                req_line = req_line[:-1].strip() + next(no_trailing_comments)
-            except StopIteration:
-                return
-        yield Requirement(req_line)
+    return map(Requirement, join_continuation(map(drop_comment, yield_lines(strs))))
 
 
 class RequirementParseError(packaging.requirements.InvalidRequirement):

@@ -12,7 +12,6 @@ from glob import glob
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Union
 
-from more_itertools import partition, unique_everseen
 from packaging.markers import InvalidMarker, Marker
 from packaging.specifiers import InvalidSpecifier, SpecifierSet
 from packaging.version import Version
@@ -24,6 +23,7 @@ from . import (
     command as _,  # noqa: F401 # imported for side-effects
 )
 from ._importlib import metadata
+from ._itertools import unique_everseen
 from ._normalization import _canonicalize_license_expression
 from ._path import StrPath
 from ._reqs import _StrOrIter
@@ -730,9 +730,8 @@ class Distribution(_Distribution):
         tomlfiles = []
         standard_project_metadata = Path(self.src_root or os.curdir, "pyproject.toml")
         if filenames is not None:
-            parts = partition(lambda f: Path(f).suffix == ".toml", filenames)
-            filenames = list(parts[0])  # 1st element => predicate is False
-            tomlfiles = list(parts[1])  # 2nd element => predicate is True
+            filenames = [f for f in filenames if Path(f).suffix != ".toml"]
+            tomlfiles = [f for f in filenames if Path(f).suffix == ".toml"]
         elif standard_project_metadata.exists():
             tomlfiles = [standard_project_metadata]
         return filenames, tomlfiles

@@ -5,7 +5,7 @@ import os
 import sys
 from typing import TYPE_CHECKING, TypeVar, Union
 
-from more_itertools import unique_everseen
+from ._itertools import unique_everseen
 
 if TYPE_CHECKING:
     from typing_extensions import TypeAlias

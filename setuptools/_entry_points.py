@@ -1,13 +1,12 @@
+from __future__ import annotations
+
 import functools
 import itertools
 import operator
 
-from jaraco.functools import pass_none
-from jaraco.text import yield_lines
-from more_itertools import consume
-
 from ._importlib import metadata
 from ._itertools import ensure_unique
+from ._text_utils import yield_lines
 from .errors import OptionError
 
 
@@ -46,7 +45,8 @@ def validate(eps: metadata.EntryPoints):
     """
     Ensure entry points are unique by group and name and validate each.
     """
-    consume(map(ensure_valid, ensure_unique(eps, key=by_group_and_name)))
+    for ep in ensure_unique(eps, key=by_group_and_name):
+        ensure_valid(ep)
     return eps
 
 
@@ -78,8 +78,9 @@ def _(eps):
 load.register(type(None), lambda x: x)
 
 
-@pass_none
-def render(eps: metadata.EntryPoints):
+def render(eps: metadata.EntryPoints | None):
+    if eps is None:
+        return None
     by_group = operator.attrgetter('group')
     groups = itertools.groupby(sorted(eps, key=by_group), by_group)
 

@@ -19,8 +19,6 @@ import tempfile
 from collections.abc import Callable, Iterable, Mapping
 from typing import TYPE_CHECKING, AnyStr
 
-from jaraco.functools import pass_none
-
 from ._log import log
 from ._modified import newer
 from .errors import DistutilsByteCompileError, DistutilsPlatformError
@@ -120,8 +118,7 @@ def split_version(s: str) -> list[int]:
     return [int(n) for n in s.split('.')]
 
 
-@pass_none
-def convert_path(pathname: str | os.PathLike[str]) -> str:
+def convert_path(pathname: str | os.PathLike[str] | None) -> str:
     r"""
     Allow for pathlib.Path inputs, coax to a native path string.
 
@@ -136,7 +133,7 @@ def convert_path(pathname: str | os.PathLike[str]) -> str:
     >>> convert_path('foo/./bar').replace('\\', '/')
     'foo/bar'
     """
-    return os.fspath(pathlib.PurePath(pathname))
+    return os.fspath(pathlib.PurePath(pathname)) if (pathname is not None) else None
 
 
 def change_root(

@@ -22,8 +22,6 @@ from fnmatch import translate
 from functools import wraps
 from typing import NamedTuple
 
-from more_itertools import unique_everseen
-
 import setuptools
 from pkg_resources import (
     BINARY_DIST,
@@ -43,6 +41,7 @@ from pkg_resources import (
 )
 from setuptools.wheel import Wheel
 
+from ._itertools import unique_everseen
 from .unicode_utils import _cfg_read_utf8_with_fallback, _read_utf8_with_fallback
 
 from distutils import log

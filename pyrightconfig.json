@@ -5,6 +5,7 @@
 		"build",
 		".tox",
 		".eggs",
+		".venv",
 		"setuptools/config/_validate_pyproject/**",
 		// These are vendored
 		"**/_vendor",
