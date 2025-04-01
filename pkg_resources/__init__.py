@@ -151,36 +151,6 @@ def yield_lines(iterable: _NestedStr) -> Generator[str]:
                 yield line
 
 
-# Adapted from jaraco.text
-def join_continuation(lines: Iterable[str]) -> Generator[str]:
-    r"""
-    Join lines continued by a trailing backslash.
-
-    >>> list(join_continuation(['foo \\', 'bar', 'baz']))
-    ['foobar', 'baz']
-    >>> list(join_continuation(['foo \\', 'bar', 'baz']))
-    ['foobar', 'baz']
-    >>> list(join_continuation(['foo \\', 'bar \\', 'baz']))
-    ['foobarbaz']
-    >>> list(join_continuation(['goo\\', 'dly']))
-    ['goodly']
-
-    A terrible idea, but...
-    If no line is available to continue, suppress the lines.
-
-    >>> list(join_continuation(['foo', 'bar\\', 'baz\\']))
-    ['foo']
-    """
-    lines = iter(lines)
-    for item in lines:
-        while item.endswith('\\'):
-            try:
-                item = item[:-1].strip() + next(lines)
-            except StopIteration:
-                return
-        yield item
-
-
 class _ZipLoaderModule(Protocol):
     __loader__: zipimport.zipimporter
 
@@ -3499,14 +3469,23 @@ def issue_warning(*args, **kw):
     warnings.warn(stacklevel=level + 1, *args, **kw)
 
 
-def parse_requirements(strs: _NestedStr) -> map[Requirement]:
+def parse_requirements(strs: _NestedStr) -> Generator[Requirement]:
     """
     Yield ``Requirement`` objects for each specification in `strs`.
 
     `strs` must be a string, or a (possibly-nested) iterable thereof.
     """
     no_trailing_comments = (line.partition(' #')[0] for line in yield_lines(strs))
-    return map(Requirement, join_continuation(no_trailing_comments))
+
+    # Inlined from jaraco.text.join_continuations:
+    # Join adjacent lines connected by line continuations.
+    for req_line in no_trailing_comments:
+        while req_line.endswith('\\'):
+            try:
+                req_line = req_line[:-1].strip() + next(no_trailing_comments)
+            except StopIteration:
+                return
+        yield Requirement(req_line)
 
 
 class RequirementParseError(packaging.requirements.InvalidRequirement):
