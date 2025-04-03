@@ -37,6 +37,7 @@ import lazy_find
 
 with lazy_find.finder:
     import _imp
+    import email.message
     import email.parser
     import errno
     import io
@@ -263,22 +264,22 @@ def _sset_dict(key: Any, ob: dict[Any, Any], state: dict[Any, Any]) -> None:  # 
     ob.update(state)
 
 
-def _sget_object(val: object) -> Any:  # pyright: ignore [reportUnusedFunction]
+def _sget_object(val: Any) -> Any:  # pyright: ignore [reportUnusedFunction]
     return val.__getstate__()
 
 
 def _sset_object(key: Any, ob: Any, state: Any) -> None:  # pyright: ignore [reportUnusedFunction]
-    ob.__setstate__(state)  # pyright: ignore [reportUnknownMemberType, reportAttributeAccessIssue]
+    ob.__setstate__(state)
 
 
 def _sget_none(*args: object) -> None:
     return None
 
 
-_sset_none = _sget_none  # pyright: ignore [reportUnusedFunction]
+_sset_none = _sget_none
 
 
-def get_supported_platform():
+def get_supported_platform() -> str:
     """Return this platform's maximum compatible version.
 
     distutils.util.get_platform() normally reports the minimum version
@@ -413,7 +414,7 @@ class VersionConflict(ResolutionError):
     def req(self) -> Requirement:
         return self.args[1]
 
-    def report(self):
+    def report(self) -> str:
         return f"{self.dist} is installed but {self.req} is required"
 
     def with_context(
@@ -439,7 +440,7 @@ class ContextualVersionConflict(VersionConflict):
     def required_by(self) -> set[str]:
         return self.args[2]
 
-    def report(self):
+    def report(self) -> str:
         return super().report() + f' by {self.required_by}'
 
 
@@ -455,12 +456,12 @@ class DistributionNotFound(ResolutionError):
         return self.args[1]
 
     @property
-    def requirers_str(self):
+    def requirers_str(self) -> str:
         if not self.requirers:
             return 'the application'
         return ', '.join(self.requirers)
 
-    def report(self):
+    def report(self) -> str:
         return (
             f"The '{self.req}' distribution was not found "
             f"and is required by {self.requirers_str}"
@@ -514,7 +515,7 @@ def get_provider(moduleOrReq: str | Requirement) -> IResourceProvider | Distribu
 
 
 @functools.cache
-def _macos_vers():
+def _macos_vers() -> list[str]:
     version = platform.mac_ver()[0]
     # fallback for MacPorts
     if version == '':
@@ -531,7 +532,7 @@ def _macos_arch(machine: str) -> str:
     return {'PowerPC': 'ppc', 'Power_Macintosh': 'ppc'}.get(machine, machine)
 
 
-def get_build_platform():
+def get_build_platform() -> str:
     """Return this platform's string for platform-specific distributions
 
     XXX Currently this is the same as ``distutils.util.get_platform()``, but it
@@ -583,11 +584,8 @@ def compatible_platforms(provided: str | None, required: str | None) -> bool:
             if provDarwin:
                 dversion = int(provDarwin.group(1))
                 macosversion = f"{reqMac.group(1)}.{reqMac.group(2)}"
-                if (
-                    dversion == 7
-                    and macosversion >= "10.3"
-                    or dversion == 8
-                    and macosversion >= "10.4"
+                if (dversion == 7 and macosversion >= "10.3") or (
+                    dversion == 8 and macosversion >= "10.4"
                 ):
                     return True
             # egg isn't macOS or legacy darwin
@@ -598,10 +596,7 @@ def compatible_platforms(provided: str | None, required: str | None) -> bool:
             return False
 
         # is the required OS major update >= the provided one?
-        if int(provMac.group(2)) > int(reqMac.group(2)):
-            return False
-
-        return True
+        return not (int(provMac.group(2)) > int(reqMac.group(2)))
 
     # XXX Linux and other platforms' special cases should go here
     return False
@@ -618,7 +613,8 @@ def get_distribution(dist: Distribution | _PkgReqType) -> Distribution:
     if isinstance(dist, Requirement):
         dist = get_provider(dist)
     if not isinstance(dist, Distribution):
-        raise TypeError("Expected str, Requirement, or Distribution", dist)
+        msg = "Expected str, Requirement, or Distribution"
+        raise TypeError(msg, dist)
     return dist
 
 
@@ -730,7 +726,7 @@ class WorkingSet:
             self.add_entry(entry)
 
     @classmethod
-    def _build_master(cls):
+    def _build_master(cls) -> Self:
         """
         Prepare the master working set.
         """
@@ -1000,7 +996,7 @@ class WorkingSet:
         # return list of distros to activate
         return to_activate
 
-    def _resolve_dist(
+    def _resolve_dist(  # noqa: PLR0913
         self,
         req: Requirement,
         best: dict[str, Distribution],
@@ -1029,7 +1025,7 @@ class WorkingSet:
                     req, ws, installer, replace_conflicting=replace_conflicting
                 )
                 if dist is None:
-                    requirers = required_by.get(req, None)
+                    requirers = required_by.get(req)
                     raise DistributionNotFound(req, requirers)
             to_activate.append(dist)
         if dist not in req:
@@ -1137,7 +1133,7 @@ class WorkingSet:
                     if fallback:
                         # try the next older version of project
                         continue
-                    else:
+                    else:  # noqa: RET507
                         # give up on this project, keep going
                         break
 
@@ -1414,7 +1410,7 @@ class Environment:
 
     def __iter__(self) -> Iterator[str]:
         """Yield the unique project names of the available distributions"""
-        for key in self._distmap.keys():
+        for key in self._distmap:
             if self[key]:
                 yield key
 
@@ -1427,7 +1423,8 @@ class Environment:
                 for dist in other[project]:
                     self.add(dist)
         else:
-            raise TypeError(f"Can't add {other!r} to environment")
+            msg = f"Can't add {other!r} to environment"
+            raise TypeError(msg)
         return self
 
     def __add__(self, other: Distribution | Environment) -> Self:
@@ -1633,7 +1630,8 @@ environment variable to point to an accessible directory.
         ``cleanup_resources()``.)
         """
         if self.cached_files:
-            raise ValueError("Can't change extraction path, files already extracted")
+            msg = "Can't change extraction path, files already extracted"
+            raise ValueError(msg)
 
         self.extraction_path = path
 
@@ -1833,9 +1831,8 @@ class NullProvider:
     def run_script(self, script_name: str, namespace: dict[str, Any]) -> None:
         script = 'scripts/' + script_name
         if not self.has_metadata(script):
-            raise ResolutionError(
-                f"Script {script!r} not found in metadata at {self.egg_info!r}",
-            )
+            msg = f"Script {script!r} not found in metadata at {self.egg_info!r}"
+            raise ResolutionError(msg)
 
         script_text = self.get_metadata(script).replace('\r\n', '\n')
         script_text = script_text.replace('\r', '\n')
@@ -1858,25 +1855,24 @@ class NullProvider:
             exec(script_code, namespace, namespace)
 
     def _has(self, path: str) -> bool:
-        raise NotImplementedError(
-            "Can't perform this operation for unregistered loader type"
-        )
+        msg = "Can't perform this operation for unregistered loader type"
+        raise NotImplementedError(msg)
 
     def _isdir(self, path: str) -> bool:
-        raise NotImplementedError(
-            "Can't perform this operation for unregistered loader type"
-        )
+        msg = "Can't perform this operation for unregistered loader type"
+        raise NotImplementedError(msg)
 
     def _listdir(self, path: str) -> list[str]:
-        raise NotImplementedError(
-            "Can't perform this operation for unregistered loader type"
-        )
+        msg = "Can't perform this operation for unregistered loader type"
+        raise NotImplementedError(msg)
 
-    def _fn(self, base: str | None, resource_name: str):
+    def _fn(self, base: str | None, resource_name: str) -> str:
         if base is None:
-            raise TypeError(
-                "`base` parameter in `_fn` is `None`. Either override this method or check the parameter first."
+            msg = (
+                "`base` parameter in `_fn` is `None`. Either override this method or "
+                "check the parameter first."
             )
+            raise TypeError(msg)
         self._validate_resource_path(resource_name)
         if resource_name:
             return os.path.join(base, *resource_name.split('/'))
@@ -1961,9 +1957,8 @@ is not allowed.
         if hasattr(self.loader, 'get_data') and self.loader:
             # Already checked get_data exists
             return self.loader.get_data(path)  # type: ignore[attr-defined]
-        raise NotImplementedError(
-            "Can't perform this operation for loaders without 'get_data()'"
-        )
+        msg = "Can't perform this operation for loaders without 'get_data()'"
+        raise NotImplementedError(msg)
 
 
 register_loader_type(object, NullProvider)
@@ -1987,7 +1982,7 @@ class EggProvider(NullProvider):
         super().__init__(module)
         self._setup_prefix()
 
-    def _setup_prefix(self):
+    def _setup_prefix(self) -> None:
         # Assume that metadata may be nested inside a "basket"
         # of multiple eggs and use module_path instead of .archive.
         eggs = filter(_is_egg_path, _parents(self.module_path))
@@ -2131,7 +2126,8 @@ class ZipProvider(EggProvider):
             return ''
         if fspath.startswith(self.zip_pre):
             return fspath[len(self.zip_pre) :]
-        raise AssertionError(f"{fspath} is not a subpath of {self.zip_pre}")
+        msg = f"{fspath} is not a subpath of {self.zip_pre}"
+        raise AssertionError(msg)
 
     def _parts(self, zip_path: str) -> list[str]:
         # Convert a zipfile subpath into an egg-relative path part list.
@@ -2139,7 +2135,8 @@ class ZipProvider(EggProvider):
         fspath = self.zip_pre + zip_path
         if fspath.startswith(self.egg_root + os.sep):
             return fspath[len(self.egg_root) + 1 :].split(os.sep)
-        raise AssertionError(f"{fspath} is not a subpath of {self.egg_root}")
+        msg = f"{fspath} is not a subpath of {self.egg_root}"
+        raise AssertionError(msg)
 
     @property
     def zipinfo(self) -> dict[str, zipfile.ZipInfo]:
@@ -2149,9 +2146,8 @@ class ZipProvider(EggProvider):
         self, manager: ResourceManager, resource_name: str
     ) -> str:
         if not self.egg_name:
-            raise NotImplementedError(
-                "resource_filename() only supported for .egg, not .zip"
-            )
+            msg = "resource_filename() only supported for .egg, not .zip"
+            raise NotImplementedError(msg)
         # no need to lock for extraction, since we use temp names
         zip_path = self._resource_to_zip(resource_name)
         eagers = self._get_eager_resources()
@@ -2180,14 +2176,12 @@ class ZipProvider(EggProvider):
         timestamp, _size = self._get_date_and_size(self.zipinfo[zip_path])
 
         if not WRITE_SUPPORT:
-            raise OSError(
-                '"os.rename" and "os.unlink" are not supported on this platform'
-            )
+            msg = '"os.rename" and "os.unlink" are not supported on this platform'
+            raise OSError(msg)
         try:
             if not self.egg_name:
-                raise OSError(
-                    '"egg_name" is empty. This likely means no egg could be found from the "module_path".'
-                )
+                msg = '"egg_name" is empty. This likely means no egg could be found from the "module_path".'
+                raise OSError(msg)
             real_path = manager.get_cache_path(self.egg_name, self._parts(zip_path))
 
             if self._is_current(real_path, zip_path):
@@ -2273,7 +2267,7 @@ class ZipProvider(EggProvider):
     def _isdir(self, fspath: str) -> bool:  # pyright: ignore [reportIncompatibleMethodOverride]
         return self._zipinfo_name(fspath) in self._index()
 
-    def _listdir(self, fspath: str):  # pyright: ignore [reportIncompatibleMethodOverride]
+    def _listdir(self, fspath: str) -> list[str]:  # pyright: ignore [reportIncompatibleMethodOverride]
         return list(self._index().get(self._zipinfo_name(fspath), ()))
 
     def _eager_to_zip(self, resource_name: str) -> str:
@@ -2309,7 +2303,8 @@ class FileMetadata(EmptyProvider):
 
     def get_metadata(self, name: str) -> str:
         if name != 'PKG-INFO':
-            raise KeyError("No metadata except PKG-INFO is available")
+            msg = "No metadata except PKG-INFO is available"
+            raise KeyError(msg)
 
         with open(self.path, encoding='utf-8', errors="replace") as f:
             metadata = f.read()
@@ -2423,7 +2418,7 @@ register_finder(zipimport.zipimporter, find_eggs_in_zip)
 
 def find_nothing(
     importer: object | None, path_item: str | None, only: bool | None = False
-):
+) -> Iterable[Distribution]:
     return ()
 
 
@@ -2537,7 +2532,7 @@ def non_empty_lines(path: str) -> Generator[str]:
             yield line
 
 
-def resolve_egg_link(path: str):
+def resolve_egg_link(path: str) -> Iterable[Distribution]:
     """
     Given a path to an .egg-link, resolve distributions
     present in the referenced path.
@@ -2584,7 +2579,7 @@ def register_namespace_handler(
     _namespace_handlers[importer_type] = namespace_handler
 
 
-def _handle_ns(packageName: str, path_item: str):
+def _handle_ns(packageName: str, path_item: str) -> str | None:
     """Ensure that named package includes a subpath of path_item (if needed)"""
 
     importer = get_importer(path_item)
@@ -2610,7 +2605,8 @@ def _handle_ns(packageName: str, path_item: str):
         module.__path__ = []
         _set_parent_ns(packageName)
     elif not hasattr(module, '__path__'):
-        raise TypeError("Not a package:", packageName)
+        msg = "Not a package:"
+        raise TypeError(msg, packageName)
     handler = _find_adapter(_namespace_handlers, importer)
     subpath = handler(importer, path_item, packageName, module)
     if subpath is not None:
@@ -2630,7 +2626,7 @@ def _rebuild_mod_path(
     """
     sys_path = [_normalize_cached(p) for p in sys.path]
 
-    def safe_sys_path_index(entry: str):
+    def safe_sys_path_index(entry: str) -> float:
         """
         Workaround for #520 and #513.
         """
@@ -2639,7 +2635,7 @@ def _rebuild_mod_path(
         except ValueError:
             return float('inf')
 
-    def position_in_sys_path(path: str):
+    def position_in_sys_path(path: str) -> float:
         """
         Return the ordinal of the path based on its position in sys.path
         """
@@ -2684,7 +2680,8 @@ def declare_namespace(packageName: str) -> None:
             try:
                 path = sys.modules[parent].__path__
             except AttributeError as e:
-                raise TypeError("Not a package:", parent) from e
+                msg = "Not a package:"
+                raise TypeError(msg, parent) from e
 
         # Track what packages are namespaces, so when new path items are added,
         # they can be updated
@@ -2717,7 +2714,7 @@ def file_ns_handler(
     path_item: StrPath,
     packageName: str,
     module: types.ModuleType,
-):
+) -> str | None:
     """Compute an ns-package subpath for a filesystem or zipfile importer"""
 
     subpath = os.path.join(path_item, packageName.split('.')[-1])
@@ -2758,7 +2755,7 @@ def normalize_path(filename: StrOrBytesPath) -> str | bytes:
     return os.path.normcase(os.path.realpath(os.path.normpath(_cygwin_patch(filename))))
 
 
-def _cygwin_patch(filename: StrOrBytesPath):  # pragma: nocover
+def _cygwin_patch(filename: StrOrBytesPath) -> StrOrBytesPath:  # pragma: nocover
     """
     Contrary to POSIX 2008, on Cygwin, getcwd (3) contains
     symlink components. Using
@@ -2844,7 +2841,8 @@ class EntryPoint:
         dist: Distribution | None = None,
     ) -> None:
         if not MODULE(module_name):
-            raise ValueError("Invalid module name", module_name)
+            msg = "Invalid module name"
+            raise ValueError(msg, module_name)
         self.name = name
         self.module_name = module_name
         self.attrs = tuple(attrs)
@@ -2916,7 +2914,8 @@ class EntryPoint:
     ) -> None:
         if not self.dist:
             error_cls = UnknownExtra if self.extras else AttributeError
-            raise error_cls("Can't require() without a distribution", self)
+            msg = "Can't require() without a distribution"
+            raise error_cls(msg, self)
 
         # Get the requirements for this entry point with all its extras and
         # then resolve them. We have to pass `extras` along when resolving so
@@ -2975,12 +2974,14 @@ class EntryPoint:
     ) -> dict[str, Self]:
         """Parse an entry point group"""
         if not MODULE(group):
-            raise ValueError("Invalid group name", group)
+            msg = "Invalid group name"
+            raise ValueError(msg, group)
         this: dict[str, Self] = {}
         for line in yield_lines(lines):
             ep = cls.parse(line, dist)
             if ep.name in this:
-                raise ValueError("Duplicate entry point", group, ep.name)
+                msg = "Duplicate entry point"
+                raise ValueError(msg, group, ep.name)
             this[ep.name] = ep
         return this
 
@@ -3001,10 +3002,12 @@ class EntryPoint:
             if group is None:
                 if not lines:
                     continue
-                raise ValueError("Entry points must be listed in groups")
+                msg = "Entry points must be listed in groups"
+                raise ValueError(msg)
             group = group.strip()
             if group in maps:
-                raise ValueError("Duplicate group name", group)
+                msg = "Duplicate group name"
+                raise ValueError(msg, group)
             maps[group] = cls.parse_group(group, lines, dist)
         return maps
 
@@ -3029,7 +3032,7 @@ class Distribution:
 
     PKG_INFO = 'PKG-INFO'
 
-    def __init__(
+    def __init__(  # noqa: PLR0913
         self,
         location: str | None = None,
         metadata: _MetadataType = None,
@@ -3076,7 +3079,7 @@ class Distribution:
             **kw,
         )._reload_version()
 
-    def _reload_version(self):
+    def _reload_version(self) -> Self:
         return self
 
     @property
@@ -3136,12 +3139,13 @@ class Distribution:
                 if hasattr(ex, "add_note"):
                     ex.add_note(info)  # PEP 678
                     raise
-                raise packaging.version.InvalidVersion(f"{str(ex)} {info}") from None
+                msg = f"{ex} {info}"
+                raise packaging.version.InvalidVersion(msg) from None
 
         return self._parsed_version
 
     @property
-    def _forgiving_parsed_version(self):
+    def _forgiving_parsed_version(self) -> parse_version:
         try:
             return self.parsed_version
         except packaging.version.InvalidVersion as ex:
@@ -3150,7 +3154,7 @@ class Distribution:
             notes = "\n".join(getattr(ex, "__notes__", []))  # PEP 678
             msg = f"""!!\n\n
             *************************************************************************
-            {str(ex)}\n{notes}
+            {ex}\n{notes}
 
             This is a long overdue deprecation.
             For the time being, `pkg_resources` will use `{self._parsed_version}`
@@ -3167,7 +3171,7 @@ class Distribution:
             return self._parsed_version
 
     @property
-    def version(self):
+    def version(self) -> str:
         try:
             return self._version
         except AttributeError as e:
@@ -3180,7 +3184,7 @@ class Distribution:
             return version
 
     @property
-    def _dep_map(self):
+    def _dep_map(self) -> dict[str | None, list[Requirement]]:
         """
         A map of extra to its list of (direct) requirements
         for this distribution, including the null extra.
@@ -3229,8 +3233,9 @@ class Distribution:
         for ext in extras:
             try:
                 deps.extend(dm[safe_extra(ext)])
-            except KeyError as e:
-                raise UnknownExtra(f"{self} has no such extra feature {ext!r}") from e
+            except KeyError as e:  # noqa: PERF203
+                msg = f"{self} has no such extra feature {ext!r}"
+                raise UnknownExtra(msg) from e
         return deps
 
     def _get_metadata_path_for_display(self, name: str) -> str:
@@ -3300,7 +3305,7 @@ class Distribution:
     def __dir__(self):
         return list(
             set(super().__dir__())
-            | set(attr for attr in self._provider.__dir__() if not attr.startswith('_'))
+            | {attr for attr in self._provider.__dir__() if not attr.startswith('_')}
         )
 
     @classmethod
@@ -3314,7 +3319,7 @@ class Distribution:
             _normalize_cached(filename), os.path.basename(filename), metadata, **kw
         )
 
-    def as_requirement(self):
+    def as_requirement(self) -> Requirement:
         """Return a ``Requirement`` that matches this distribution exactly"""
         if isinstance(self.parsed_version, packaging.version.Version):
             spec = f"{self.project_name}=={self.parsed_version}"
@@ -3327,7 +3332,8 @@ class Distribution:
         """Return the `name` entry point of `group` or raise ImportError"""
         ep = self.get_entry_info(group, name)
         if ep is None:
-            raise ImportError(f"Entry point {(group, name)!r} not found")
+            msg = f"Entry point {(group, name)!r} not found"
+            raise ImportError(msg)
         return ep.load()
 
     @overload
@@ -3380,7 +3386,7 @@ class Distribution:
 
         nloc = _normalize_cached(loc)
         bdir = os.path.dirname(nloc)
-        npath = [(p and _normalize_cached(p) or p) for p in path]
+        npath = [((p and _normalize_cached(p)) or p) for p in path]
 
         for p, item in enumerate(npath):
             if item == nloc:
@@ -3413,7 +3419,7 @@ class Distribution:
         while True:
             try:
                 np = npath.index(nloc, p + 1)
-            except ValueError:
+            except ValueError:  # noqa: PERF203
                 break
             else:
                 del npath[np], path[np]
@@ -3422,7 +3428,7 @@ class Distribution:
 
         return
 
-    def check_version_conflict(self):
+    def check_version_conflict(self) -> None:
         if self.key == 'setuptools':
             # ignore the inevitable setuptools self-conflicts  :(
             return
@@ -3475,7 +3481,7 @@ class Distribution:
 
 
 class EggInfoDistribution(Distribution):
-    def _reload_version(self):
+    def _reload_version(self) -> Self:
         """
         Packages installed by distutils (e.g. numpy or scipy),
         which uses an old safe_version, and so
@@ -3503,7 +3509,7 @@ class DistInfoDistribution(Distribution):
     EQEQ = re.compile(r"([\(,])\s*(\d.*?)\s*([,\)])")
 
     @property
-    def _parsed_pkg_info(self):
+    def _parsed_pkg_info(self) -> email.message.Message:
         """Parse and cache metadata"""
         try:
             return self._pkg_info
@@ -3513,7 +3519,7 @@ class DistInfoDistribution(Distribution):
             return self._pkg_info
 
     @property
-    def _dep_map(self):
+    def _dep_map(self) -> dict[str | None, list[Requirement]]:
         try:
             return self.__dep_map
         except AttributeError:
@@ -3654,7 +3660,8 @@ def _find_adapter(registry: Mapping[type, _AdapterT], ob: object) -> _AdapterT:
             return registry[t]
     # _find_adapter would previously return None, and immediately be called.
     # So we're raising a TypeError to keep backward compatibility if anyone depended on that behaviour.
-    raise TypeError(f"Could not find adapter for {registry} and {ob}")
+    msg = f"Could not find adapter for {registry} and {ob}"
+    raise TypeError(msg)
 
 
 def ensure_directory(path: StrOrBytesPath) -> None:
@@ -3666,7 +3673,8 @@ def ensure_directory(path: StrOrBytesPath) -> None:
 def _bypass_ensure_directory(path: str) -> None:
     """Sandbox-bypassing version of ensure_directory()"""
     if not WRITE_SUPPORT:
-        raise OSError('"os.mkdir" not supported on this platform.')
+        msg = '"os.mkdir" not supported on this platform.'
+        raise OSError(msg)
     dirname, filename = split(path)
     if dirname and filename and not isdir(dirname):
         _bypass_ensure_directory(dirname)
@@ -3694,7 +3702,8 @@ def split_sections(s: _NestedStr) -> Iterator[tuple[str | None, list[str]]]:
                 section = line[1:-1].strip()
                 content = []
             else:
-                raise ValueError("Invalid section heading", line)
+                msg = "Invalid section heading"
+                raise ValueError(msg, line)
         else:
             content.append(line)
 
@@ -3761,7 +3770,7 @@ def _read_utf8_with_fallback(
         # TODO: Add a deadline?
         #       See comment in setuptools.unicode_utils._Utf8EncodingNeeded
         warnings.warn(msg, PkgResourcesDeprecationWarning, stacklevel=2)
-        with open(file, "r", encoding=fallback_encoding) as f:
+        with open(file, encoding=fallback_encoding) as f:
             return f.read()
 
 
@@ -3788,8 +3797,8 @@ def _initialize_master_working_set() -> None:  # pyright: ignore [reportUnusedFu
     Invocation by other packages is unsupported and done
     at their own risk.
     """
-    global working_set, require, iter_entry_points, add_activation_listener, run_script
-    global run_main
+    global working_set, require, iter_entry_points, add_activation_listener, run_script  # noqa: PLW0603
+    global run_main  # noqa: PLW0603
 
     working_set = _declare_state('object', 'working_set', WorkingSet._build_master())
 

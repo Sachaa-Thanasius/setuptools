@@ -150,6 +150,9 @@ extend-ignore = [
 	"ISC001",
 	"ISC002",
 	"W293",   # Not recommended, but ruff format handles it as well.
+
+	# ---- Project-specific rules
+	"PTH", # Actually, os.path and open are fine here.
 ]
 unfixable = [
 	"ERA", # Prevent unlikely erroneous deletion.
@@ -189,7 +192,7 @@ typeCheckingMode = "strict"
 defineConstant = { "TYPE_CHECKING" = true } # Just in case.
 
 reportUnboundVariable = "information"           # Noisy for pkg_resources.
-reportPrivateUsage = "warning"                  # We're the library.
+reportPrivateUsage = "information"              # We're the library.
 reportUnnecessaryIsInstance = "information"     # Verify user input.
 reportUninitializedInstanceVariable = "warning" # Occasionally nice as a checkup, but otherwise noisy.
 reportCallInDefaultInitializer = "warning"
