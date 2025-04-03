@@ -98,6 +98,7 @@ except ImportError:
     # no write support, probably under GAE
     WRITE_SUPPORT = False  # pyright: ignore [reportConstantRedefinition]
 
+
 import packaging.markers
 import packaging.requirements
 import packaging.specifiers
@@ -127,6 +128,9 @@ else:  # pragma: <3.11 cover
 
 if TYPE_CHECKING:
     from _typeshed.importlib import LoaderProtocol
+    from typing_extensions import ParamSpec
+
+    _P = ParamSpec("_P")
 
 
 warnings.warn(
@@ -3799,7 +3803,16 @@ def _read_utf8_with_fallback(
             return f.read()
 
 
-def _initialize(g: dict[str, Any] = globals()) -> None:
+# from jaraco.functools 1.3
+def _call_aside(
+    f: Callable[_P, _T], *args: _P.args, **kwargs: _P.kwargs
+) -> Callable[_P, _T]:
+    f(*args, **kwargs)
+    return f
+
+
+@_call_aside
+def _initialize(g: dict[str, Any] = globals()) -> None:  # pyright: ignore [reportUnusedFunction]
     "Set up global resource manager (deliberately not state-saved)"
     manager = ResourceManager()
     g['_manager'] = manager
@@ -3808,11 +3821,8 @@ def _initialize(g: dict[str, Any] = globals()) -> None:
             g[name] = getattr(manager, name)
 
 
-# NOTE: Make sure _initialize is always called.
-_initialize()
-
-
-def _initialize_master_working_set() -> None:
+@_call_aside
+def _initialize_master_working_set() -> None:  # pyright: ignore [reportUnusedFunction]
     """
     Prepare the master working set and make the ``require()``
     API available.
@@ -3824,8 +3834,8 @@ def _initialize_master_working_set() -> None:
     Invocation by other packages is unsupported and done
     at their own risk.
     """
-    global working_set, require, iter_entry_points, add_activation_listener, run_script  # noqa: PLW0603
-    global run_main  # noqa: PLW0603
+    global working_set  # noqa: PLW0603
+    global require, iter_entry_points, add_activation_listener, run_script, run_main  # noqa: PLW0603
 
     working_set = _declare_state('object', 'working_set', WorkingSet._build_master())
 
@@ -3849,10 +3859,6 @@ def _initialize_master_working_set() -> None:
     # match order
     for path_entry in sys.path:
         working_set.add_entry(path_entry)
-
-
-# NOTE: Make sure _initialize_master_working_set is always called.
-_initialize_master_working_set()
 
 
 # NOTE: Keep the _initialize* functions above in sync with the below.
