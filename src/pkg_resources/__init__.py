@@ -3799,7 +3799,7 @@ def _read_utf8_with_fallback(
             return f.read()
 
 
-def _initialize(g: dict[str, Any] = globals()) -> None:  # pyright: ignore [reportUnusedFunction]
+def _initialize(g: dict[str, Any] = globals()) -> None:
     "Set up global resource manager (deliberately not state-saved)"
     manager = ResourceManager()
     g['_manager'] = manager
@@ -3808,7 +3808,11 @@ def _initialize(g: dict[str, Any] = globals()) -> None:  # pyright: ignore [repo
             g[name] = getattr(manager, name)
 
 
-def _initialize_master_working_set() -> None:  # pyright: ignore [reportUnusedFunction]
+# NOTE: Make sure _initialize is always called.
+_initialize()
+
+
+def _initialize_master_working_set() -> None:
     """
     Prepare the master working set and make the ``require()``
     API available.
@@ -3847,20 +3851,25 @@ def _initialize_master_working_set() -> None:  # pyright: ignore [reportUnusedFu
         working_set.add_entry(path_entry)
 
 
-# NOTE: Keep the the _initialize* functions above in sync with the below.
-_manager = ResourceManager()
-resource_exists = _manager.resource_exists
-resource_isdir = _manager.resource_isdir
-resource_filename = _manager.resource_filename
-resource_stream = _manager.resource_stream
-resource_string = _manager.resource_string
-resource_listdir = _manager.resource_listdir
-set_extraction_path = _manager.set_extraction_path
-cleanup_resources = _manager.cleanup_resources
+# NOTE: Make sure _initialize_master_working_set is always called.
+_initialize_master_working_set()
 
-working_set = WorkingSet()
-require = working_set.require
-iter_entry_points = working_set.iter_entry_points
-add_activation_listener = working_set.subscribe
-run_script = working_set.run_script
-run_main = run_script
+
+# NOTE: Keep the _initialize* functions above in sync with the below.
+if TYPE_CHECKING:
+    _manager = ResourceManager()
+    resource_exists = _manager.resource_exists
+    resource_isdir = _manager.resource_isdir
+    resource_filename = _manager.resource_filename
+    resource_stream = _manager.resource_stream
+    resource_string = _manager.resource_string
+    resource_listdir = _manager.resource_listdir
+    set_extraction_path = _manager.set_extraction_path
+    cleanup_resources = _manager.cleanup_resources
+
+    working_set = WorkingSet()
+    require = working_set.require
+    iter_entry_points = working_set.iter_entry_points
+    add_activation_listener = working_set.subscribe
+    run_script = working_set.run_script
+    run_main = run_script
