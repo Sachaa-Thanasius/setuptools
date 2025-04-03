@@ -174,7 +174,7 @@ keep-runtime-typing = true
 	"ANN001", # Annotations for parameters.
 	"ANN201", # Annotations for public function returns.
 	"ANN202", # Annotations for private function returns.
-	"PT",     # Heavy usage of unittest-based tests.
+	"ANN206", # Annotations for classmethod returns.
 ]
 
 [tool.ruff.format]

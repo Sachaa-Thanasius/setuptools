@@ -35,7 +35,6 @@ import lazy_find
 # 2) aren't going to be activated immediately at import time anyway, and
 # 3) actually are expensive.
 with lazy_find.finder:
-    import _imp
     import email.message
     import email.parser
     import platform
@@ -46,7 +45,7 @@ with lazy_find.finder:
 
     import platformdirs
 
-
+import _imp
 import collections
 import errno
 import functools
@@ -106,10 +105,28 @@ import packaging.utils
 import packaging.version
 
 
+if sys.version_info >= (3, 10):  # pragma: >=3.10 cover
+    from typing import TypeAlias
+elif TYPE_CHECKING:
+    from typing_extensions import TypeAlias
+else:  # pragma: <3.10 cover
+
+    class TypeAlias:
+        """Placeholder for typing.TypeAlias."""
+
+
+if sys.version_info >= (3, 11):  # pragma: >=3.11 cover
+    from typing import Self
+elif TYPE_CHECKING:
+    from typing_extensions import Self
+else:  # pragma: <3.11 cover
+
+    class Self:
+        """Placeholder for typing.Self."""
+
+
 if TYPE_CHECKING:
-    from _typeshed import BytesPath, StrOrBytesPath, StrPath
     from _typeshed.importlib import LoaderProtocol
-    from typing_extensions import Self, TypeAlias
 
 
 warnings.warn(
@@ -118,6 +135,7 @@ warnings.warn(
     DeprecationWarning,
     stacklevel=2,
 )
+
 
 _T = TypeVar("_T")
 _DistributionT = TypeVar("_DistributionT", bound="Distribution")
@@ -139,6 +157,15 @@ _NSHandlerType: TypeAlias = Callable[[_T, str, str, types.ModuleType], Union[str
 _AdapterT = TypeVar(
     "_AdapterT", _DistFinderType[Any], _ProviderFactoryType, _NSHandlerType[Any]
 )
+
+# Type aliases copied from typeshed.
+StrPath: TypeAlias = Union[str, os.PathLike[str]]
+BytesPath: TypeAlias = Union[bytes, os.PathLike[bytes]]
+StrOrBytesPath: TypeAlias = Union[StrPath, BytesPath]
+
+
+class _ZipLoaderModule(Protocol):
+    __loader__: zipimport.zipimporter
 
 
 # Adapted from jaraco.text 3.12.1
@@ -213,10 +240,6 @@ def join_continuation(lines: Iterable[str]) -> Generator[str]:
             except StopIteration:
                 return
         yield item
-
-
-class _ZipLoaderModule(Protocol):
-    __loader__: zipimport.zipimporter
 
 
 _PEP440_FALLBACK = re.compile(
@@ -1119,7 +1142,8 @@ class WorkingSet:
 
         shadow_set = self.__class__([])
         # put all our entries in shadow_set
-        list(map(shadow_set.add, self))
+        for entry in self:
+            shadow_set.add(entry)
 
         for project_name in plugin_projects:
             for dist in plugin_env[project_name]:
@@ -1139,7 +1163,8 @@ class WorkingSet:
                         break
 
                 else:
-                    list(map(shadow_set.add, resolvees))
+                    for resolvee in resolvees:
+                        shadow_set.add(resolvee)
                     distributions.update(dict.fromkeys(resolvees))
 
                     # success, no need to try any more versions of this project
@@ -2546,7 +2571,7 @@ def resolve_egg_link(path: str) -> Iterable[Distribution]:
 
 
 # PYUPDATE: py3.12 - ImpImporter was removed in 3.12.
-if hasattr(pkgutil, 'ImpImporter'):
+if hasattr(pkgutil, 'ImpImporter'):  # pragma: <3.12 cover
     register_finder(pkgutil.ImpImporter, find_on_path)  # pyright: ignore [reportUnknownMemberType, reportUnknownArgumentType, reportAttributeAccessIssue]
 
 register_finder(importlib.machinery.FileFinder, find_on_path)
@@ -3778,11 +3803,9 @@ def _initialize(g: dict[str, Any] = globals()) -> None:  # pyright: ignore [repo
     "Set up global resource manager (deliberately not state-saved)"
     manager = ResourceManager()
     g['_manager'] = manager
-    g.update(
-        (name, getattr(manager, name))
-        for name in dir(manager)
-        if not name.startswith('_')
-    )
+    for name in dir(manager):
+        if not name.startswith('_'):
+            g[name] = getattr(manager, name)
 
 
 def _initialize_master_working_set() -> None:  # pyright: ignore [reportUnusedFunction]
