@@ -32,37 +32,10 @@ Source = "https://github.com/Sachaa-Thanasius/setuptools/tree/just-pkg_resources
 Documentation = "https://setuptools.pypa.io/en/latest/pkg_resources.html"
 Changelog = "https://setuptools.pypa.io/en/stable/history.html"
 
-[project.optional-dependencies]
-test = [
-	# upstream
-	"pytest >= 6, != 8.1.*",
-
-	# local
-	"virtualenv>=13.0.0",
-	"wheel>=0.44.0",                         # Consistent requirement normalisation in METADATA (see #4547)
-	"pip>=19.1",                             # For proper file:// URLs support.
-	"packaging>=24.2",
-	"jaraco.envs>=2.2",
-	"pytest-xdist>=3",                       # Dropped dependency on pytest-fork and py
-	"jaraco.path>=3.7.2",                    # Typing fixes
-	"build[virtualenv]>=1.0.3",
-	"filelock>=3.4.0",
-	"ini2toml[lite]>=0.14",
-	"tomli-w>=1.0.0",
-	"pytest-timeout",
-	'pytest-perf; sys_platform != "cygwin"', # workaround for jaraco/inflect#195, pydantic/pydantic-core#773 (see #3986)
-	"jaraco.text>=3.7",
-	"more_itertools>=8.8",
-	# for tools/finalize.py
-	'jaraco.develop >= 7.21; python_version >= "3.9" and sys_platform != "cygwin"',
-	"pytest-home >= 0.5",
-	"pytest-subprocess",
-
-	# workaround for pypa/pyproject-hooks#206
-	"pyproject-hooks!=1.1",
-
-	"jaraco.test>=5.5", # py.typed
-]
+[dependency-groups]
+dev = ["tox>=4.24.1"]
+test = ["pytest>=8", "jaraco.path", "setuptools"]
+cov = ["coverage>=7", "covdefaults"]
 
 
 # -------- Test config --------
