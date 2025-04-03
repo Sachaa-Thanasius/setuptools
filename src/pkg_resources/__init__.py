@@ -33,35 +33,38 @@ import lazy_find
 # Lazify imports of modules that:
 # 1) can be lazified, i.e. aren't weird (e.g. collections.abc),
 # 2) aren't going to be activated immediately at import time anyway, and
-# 4) actually are expensive.
-
+# 3) actually are expensive.
 with lazy_find.finder:
     import _imp
     import email.message
     import email.parser
-    import errno
-    import io
-    import ntpath
-    import operator
     import platform
     import plistlib
     import posixpath
-    import re
-    import stat
     import tempfile
-    import time
     import zipfile
-    import zipimport
+
+    import platformdirs
+
 
 import collections
+import errno
 import functools
 import importlib
 import importlib.machinery
+import io
+import ntpath
+import operator
 import os
 import pkgutil
+import re
+import stat
+import time
 import types
 import warnings
+import zipimport
 from collections.abc import (
+    Callable,
     Generator,
     Iterable,
     Iterator,
@@ -74,7 +77,6 @@ from typing import (
     TYPE_CHECKING,
     Any,
     BinaryIO,
-    Callable,
     Literal,
     NamedTuple,
     NoReturn,
@@ -103,9 +105,6 @@ import packaging.specifiers
 import packaging.utils
 import packaging.version
 
-
-with lazy_find.finder:
-    import platformdirs
 
 if TYPE_CHECKING:
     from _typeshed import BytesPath, StrOrBytesPath, StrPath
@@ -171,7 +170,7 @@ def yield_lines(iterable: _NestedStr) -> Generator[str]:
 
 
 # From jaraco.text 3.12.1
-def drop_comment(line: str):
+def drop_comment(line: str) -> str:
     """
     Drop comments.
 
@@ -187,7 +186,7 @@ def drop_comment(line: str):
 
 
 # Adapted from jaraco.text 3.12.1
-def join_continuation(lines: Iterable[str]):
+def join_continuation(lines: Iterable[str]) -> Generator[str]:
     r"""
     Join lines continued by a trailing backslash.
 
@@ -220,7 +219,9 @@ class _ZipLoaderModule(Protocol):
     __loader__: zipimport.zipimporter
 
 
-_PEP440_FALLBACK = re.compile(r"^v?(?P<safe>(?:[0-9]+!)?[0-9]+(?:\.[0-9]+)*)", re.I)
+_PEP440_FALLBACK = re.compile(
+    r"^v?(?P<safe>(?:[0-9]+!)?[0-9]+(?:\.[0-9]+)*)", re.IGNORECASE
+)
 
 
 class PEP440Warning(RuntimeWarning):
@@ -1695,8 +1696,7 @@ def _forgiving_version(version: str) -> str:
     <Version('0.dev0+sanitized.hello.world')>
     """
     version = version.replace(' ', '.')
-    match = _PEP440_FALLBACK.search(version)
-    if match:
+    if match := _PEP440_FALLBACK.search(version):
         safe = match["safe"]
         rest = version[len(safe) :]
     else:
@@ -2545,7 +2545,7 @@ def resolve_egg_link(path: str) -> Iterable[Distribution]:
     return next(dist_groups, ())
 
 
-# PYUPDATE: py3.12 - ImpImporter was removed after 3.11.
+# PYUPDATE: py3.12 - ImpImporter was removed in 3.12.
 if hasattr(pkgutil, 'ImpImporter'):
     register_finder(pkgutil.ImpImporter, find_on_path)  # pyright: ignore [reportUnknownMemberType, reportUnknownArgumentType, reportAttributeAccessIssue]
 
@@ -2728,7 +2728,7 @@ def file_ns_handler(
 
 
 if hasattr(pkgutil, 'ImpImporter'):
-    register_namespace_handler(pkgutil.ImpImporter, file_ns_handler)  # pyright: ignore [reportUnknownMemberType, reportUnknownArgumentType, reportAttributeAccessIssue]
+    register_namespace_handler(pkgutil.ImpImporter, file_ns_handler)
 
 register_namespace_handler(zipimport.zipimporter, file_ns_handler)
 register_namespace_handler(importlib.machinery.FileFinder, file_ns_handler)
@@ -3122,7 +3122,7 @@ class Distribution:
     # may not know their name or version without loading PKG-INFO)
 
     @property
-    def key(self):
+    def key(self) -> str:
         try:
             return self._key
         except AttributeError:
@@ -3130,7 +3130,7 @@ class Distribution:
             return key
 
     @property
-    def parsed_version(self):
+    def parsed_version(self) -> parse_version:
         if not hasattr(self, "_parsed_version"):
             try:
                 self._parsed_version = parse_version(self.version)
@@ -3749,7 +3749,7 @@ def _read_utf8_with_fallback(
 ) -> str:
     """See setuptools.unicode_utils._read_utf8_with_fallback"""
     try:
-        with open(file, "r", encoding="utf-8") as f:
+        with open(file, encoding="utf-8") as f:
             return f.read()
     except UnicodeDecodeError:  # pragma: no cover
         msg = f"""\
@@ -3824,7 +3824,8 @@ def _initialize_master_working_set() -> None:  # pyright: ignore [reportUnusedFu
         working_set.add_entry(path_entry)
 
 
-_manager = ResourceManager()  # Won't exist at runtime
+# NOTE: Keep the the _initialize* functions above in sync with the below.
+_manager = ResourceManager()
 resource_exists = _manager.resource_exists
 resource_isdir = _manager.resource_isdir
 resource_filename = _manager.resource_filename
